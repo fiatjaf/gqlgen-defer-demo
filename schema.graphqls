@@ -1,0 +1,10 @@
+type Query {
+  fruits: [Fruit!]!
+}
+
+type Fruit {
+  name: String
+  color: String!
+  price: Int!
+  availability: Int!
+}
