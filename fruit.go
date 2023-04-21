@@ -2,21 +2,30 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"math/rand"
+	"time"
 )
 
 type Fruit struct {
 	Name  string
 	Color string
+
+	price int
+
+	Availability Availability
 }
 
 func (f *Fruit) Price(ctx context.Context) int {
-	fmt.Printf("checking %s price\n", f.Name)
-	return rand.Int()
+	return f.price
 }
 
-func (f *Fruit) Availability(ctx context.Context) int {
-	fmt.Printf("checking %s availability\n", f.Name)
-	return rand.Int()
+type Availability struct{}
+
+func (_ Availability) Here(ctx context.Context) int {
+	return rand.Intn(10)
+}
+
+func (_ Availability) There(ctx context.Context) int {
+	time.Sleep(time.Duration(rand.Intn(5)+2) * time.Second)
+	return rand.Intn(10)
 }

@@ -25,6 +25,8 @@ resolver:
 # Optional: turn on to use []Thing instead of []*Thing
 # omit_slice_element_pointers: false
 
+omit_complexity: true
+
 # Optional: turn off to make struct-type struct fields not use pointers
 # e.g. type Thing struct { FieldA OtherThing } instead of { FieldA *OtherThing }
 # struct_fields_always_pointers: true
@@ -48,3 +50,5 @@ autobind:
 models:
   Fruit:
     model: github.com/fiatjaf/gqlgen-defer-demo.Fruit
+  Availability:
+    model: github.com/fiatjaf/gqlgen-defer-demo.Availability

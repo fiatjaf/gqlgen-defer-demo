@@ -9,8 +9,8 @@ type Resolver struct{}
 // // foo
 func (r *queryResolver) Fruits(ctx context.Context) ([]*Fruit, error) {
 	return []*Fruit{
-		{Name: "banana", Color: "yellow"},
-		{Name: "apple", Color: "red"},
+		{Name: "banana", Color: "yellow", price: 1},
+		{Name: "apple", Color: "red", price: 5},
 	}, nil
 }
 

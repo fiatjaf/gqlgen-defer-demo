@@ -14,7 +14,7 @@ let url = '/graphql'
 const sse = createClient({
   url,
   singleConnection: false,
-  onMessage: console.log,
+  onMessage: console.log.bind(console, 'MESSAGE'),
   retryAttempts: 0,
   headers: () => globalHeaders
 })
@@ -28,67 +28,51 @@ function fetcher({query, operationName, variables}, {headers}) {
     globalHeaders = {}
   }, 1)
 
-  if (query.trim().startsWith('subscription')) {
-    let deferred = null
-    const pending = []
-    let throwMe = null
-    let done = false
-    const dispose = sse.subscribe(
-      {query, operationName, variables},
-      {
-        next: data => {
-          pending.push(data)
-          deferred?.resolve(false)
-        },
-        error: err => {
-          throwMe = err
-          deferred?.reject(throwMe)
-        },
-        complete: () => {
-          done = true
-          deferred?.resolve(true)
-        }
-      }
-    )
-    return {
-      [Symbol.asyncIterator]() {
-        return this
+  let deferred = null
+  const pending = []
+  let throwMe = null
+  let done = false
+  const dispose = sse.subscribe(
+    {query, operationName, variables},
+    {
+      next: data => {
+        pending.push(data)
+        deferred?.resolve(false)
       },
-      async next() {
-        if (done) return {done: true, value: undefined}
-        if (throwMe) throw throwMe
-        if (pending.length) return {value: pending.shift()}
-        return (await new Promise(
-          (resolve, reject) => (deferred = {resolve, reject})
-        ))
-          ? {done: true, value: undefined}
-          : {value: pending.shift()}
-      },
-      async throw(err) {
+      error: err => {
         throwMe = err
         deferred?.reject(throwMe)
-        return {done: true, value: undefined}
       },
-      async return() {
+      complete: () => {
         done = true
         deferred?.resolve(true)
-        dispose()
-        return {done: true, value: undefined}
       }
     }
-  } else {
-    return new Promise((resolve, reject) => {
-      let result
-      sse.subscribe(
-        {query, operationName, variables},
-        {
-          next: data => {
-            result = data
-          },
-          error: reject,
-          complete: () => resolve(result)
-        }
-      )
-    })
+  )
+  return {
+    [Symbol.asyncIterator]() {
+      return this
+    },
+    async next() {
+      if (done) return {done: true, value: undefined}
+      if (throwMe) throw throwMe
+      if (pending.length) return {value: pending.shift()}
+      return (await new Promise(
+        (resolve, reject) => (deferred = {resolve, reject})
+      ))
+        ? {done: true, value: undefined}
+        : {value: pending.shift()}
+    },
+    async throw(err) {
+      throwMe = err
+      deferred?.reject(throwMe)
+      return {done: true, value: undefined}
+    },
+    async return() {
+      done = true
+      deferred?.resolve(true)
+      dispose()
+      return {done: true, value: undefined}
+    }
   }
 }

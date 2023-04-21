@@ -18,7 +18,15 @@ import (
 var graphiql embed.FS
 
 func main() {
-	srv := handler.New(NewExecutableSchema(Config{Resolvers: &Resolver{}}))
+	srv := handler.New(NewExecutableSchema(Config{
+		Resolvers: &Resolver{},
+		Directives: DirectiveRoot{
+			// this is here just so the schema doesn't crash on me, the actual defer impl is on gqlgen/graphql
+			Defer: func(ctx context.Context, obj interface{}, next graphql.Resolver) (res interface{}, err error) {
+				return next(ctx)
+			},
+		},
+	}))
 
 	// debugging
 	srv.AroundFields(func(ctx context.Context, next graphql.Resolver) (res interface{}, err error) {
@@ -37,9 +45,6 @@ func main() {
 	// ~~
 
 	srv.AddTransport(transport.SSE{})
-	srv.AddTransport(transport.Options{})
-	srv.AddTransport(transport.GET{})
-	srv.AddTransport(transport.POST{})
 	srv.AddTransport(&transport.Websocket{
 		Upgrader: websocket.Upgrader{
 			CheckOrigin: func(r *http.Request) bool { return true },
