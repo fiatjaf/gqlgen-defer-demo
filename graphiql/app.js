@@ -14,7 +14,7 @@ let url = '/graphql'
 const sse = createClient({
   url,
   singleConnection: false,
-  onMessage: console.log.bind(console, 'MESSAGE'),
+  onMessage: ({event, data}) => console.log(event, data),
   retryAttempts: 0,
   headers: () => globalHeaders
 })

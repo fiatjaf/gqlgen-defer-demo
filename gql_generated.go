@@ -89,6 +89,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 					data = result.Result
 					response.Path = result.Path
 					response.Label = result.Label
+					response.Errors = result.Errors
 				} else {
 					return nil
 				}
@@ -104,12 +105,15 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 			for _, deferred := range dg {
 				ec.pendingDeferred++
 				go func(deferred graphql.DeferredGroup) {
-					deferred.FieldSet.Dispatch()
+					ctx = graphql.WithFreshResponseContext(ctx)
+					deferred.FieldSet.Dispatch(ctx)
 					ds := graphql.DeferredResult{
 						Path:   deferred.Path,
 						Label:  deferred.Label,
 						Result: deferred.FieldSet,
+						Errors: graphql.GetErrors(ctx),
 					}
+					// null fields should bubble up
 					if deferred.FieldSet.Invalids > 0 {
 						ds.Result = graphql.Null
 					}
@@ -475,7 +479,7 @@ func (ec *executionContext) _Fruit_availability(ctx context.Context, field graph
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return obj.Availability, nil
+		return obj.Availability(ctx), nil
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -496,7 +500,7 @@ func (ec *executionContext) fieldContext_Fruit_availability(ctx context.Context,
 	fc = &graphql.FieldContext{
 		Object:     "Fruit",
 		Field:      field,
-		IsMethod:   false,
+		IsMethod:   true,
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			switch field.Name {
@@ -2512,7 +2516,7 @@ func (ec *executionContext) _Availability(ctx context.Context, sel ast.Selection
 					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
 					deferred[field.Deferrable.Label] = dfs
 				}
-				dfs.Concurrently(di, func() graphql.Marshaler {
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
 					return innerFunc(ctx, dfs)
 				})
 
@@ -2521,7 +2525,7 @@ func (ec *executionContext) _Availability(ctx context.Context, sel ast.Selection
 				continue
 			}
 
-			out.Concurrently(i, func() graphql.Marshaler { return innerFunc(ctx, out) })
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		case "there":
 			field := field
 
@@ -2548,7 +2552,7 @@ func (ec *executionContext) _Availability(ctx context.Context, sel ast.Selection
 					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
 					deferred[field.Deferrable.Label] = dfs
 				}
-				dfs.Concurrently(di, func() graphql.Marshaler {
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
 					return innerFunc(ctx, dfs)
 				})
 
@@ -2557,12 +2561,12 @@ func (ec *executionContext) _Availability(ctx context.Context, sel ast.Selection
 				continue
 			}
 
-			out.Concurrently(i, func() graphql.Marshaler { return innerFunc(ctx, out) })
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
 	}
-	out.Dispatch()
+	out.Dispatch(ctx)
 	if out.Invalids > 0 {
 		return graphql.Null
 	}
@@ -2623,7 +2627,7 @@ func (ec *executionContext) _Fruit(ctx context.Context, sel ast.SelectionSet, ob
 					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
 					deferred[field.Deferrable.Label] = dfs
 				}
-				dfs.Concurrently(di, func() graphql.Marshaler {
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
 					return innerFunc(ctx, dfs)
 				})
 
@@ -2632,17 +2636,48 @@ func (ec *executionContext) _Fruit(ctx context.Context, sel ast.SelectionSet, ob
 				continue
 			}
 
-			out.Concurrently(i, func() graphql.Marshaler { return innerFunc(ctx, out) })
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		case "availability":
-			out.Values[i] = ec._Fruit_availability(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				atomic.AddUint32(&out.Invalids, 1)
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Fruit_availability(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
 			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
 	}
-	out.Dispatch()
+	out.Dispatch(ctx)
 	if out.Invalids > 0 {
 		return graphql.Null
 	}
@@ -2699,7 +2734,7 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 			}
 
-			out.Concurrently(i, func() graphql.Marshaler { return rrm(innerCtx) })
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "__type":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Query___type(ctx, field)
@@ -2712,7 +2747,7 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
 	}
-	out.Dispatch()
+	out.Dispatch(ctx)
 	if out.Invalids > 0 {
 		return graphql.Null
 	}
@@ -2766,7 +2801,7 @@ func (ec *executionContext) ___Directive(ctx context.Context, sel ast.SelectionS
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
 	}
-	out.Dispatch()
+	out.Dispatch(ctx)
 	if out.Invalids > 0 {
 		return graphql.Null
 	}
@@ -2812,7 +2847,7 @@ func (ec *executionContext) ___EnumValue(ctx context.Context, sel ast.SelectionS
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
 	}
-	out.Dispatch()
+	out.Dispatch(ctx)
 	if out.Invalids > 0 {
 		return graphql.Null
 	}
@@ -2868,7 +2903,7 @@ func (ec *executionContext) ___Field(ctx context.Context, sel ast.SelectionSet, 
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
 	}
-	out.Dispatch()
+	out.Dispatch(ctx)
 	if out.Invalids > 0 {
 		return graphql.Null
 	}
@@ -2914,7 +2949,7 @@ func (ec *executionContext) ___InputValue(ctx context.Context, sel ast.Selection
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
 	}
-	out.Dispatch()
+	out.Dispatch(ctx)
 	if out.Invalids > 0 {
 		return graphql.Null
 	}
@@ -2967,7 +3002,7 @@ func (ec *executionContext) ___Schema(ctx context.Context, sel ast.SelectionSet,
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
 	}
-	out.Dispatch()
+	out.Dispatch(ctx)
 	if out.Invalids > 0 {
 		return graphql.Null
 	}
@@ -3022,7 +3057,7 @@ func (ec *executionContext) ___Type(ctx context.Context, sel ast.SelectionSet, o
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
 	}
-	out.Dispatch()
+	out.Dispatch(ctx)
 	if out.Invalids > 0 {
 		return graphql.Null
 	}
