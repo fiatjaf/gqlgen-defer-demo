@@ -20,12 +20,6 @@ var graphiql embed.FS
 func main() {
 	srv := handler.New(NewExecutableSchema(Config{
 		Resolvers: &Resolver{},
-		Directives: DirectiveRoot{
-			// this is here just so the schema doesn't crash on me, the actual defer impl is on gqlgen/graphql
-			Defer: func(ctx context.Context, obj interface{}, next graphql.Resolver) (res interface{}, err error) {
-				return next(ctx)
-			},
-		},
 	}))
 
 	// debugging

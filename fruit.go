@@ -22,6 +22,7 @@ func (f *Fruit) Price(ctx context.Context) int {
 type Availability struct{}
 
 func (_ Availability) Here(ctx context.Context) int {
+	time.Sleep(time.Duration(rand.Intn(2)+1) * time.Second)
 	return rand.Intn(10)
 }
 
