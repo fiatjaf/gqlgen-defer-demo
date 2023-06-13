@@ -1,7 +1,7 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import {GraphiQL} from 'graphiql'
-import {createClient} from 'graphql-sse'
+import {createClient} from 'graphql-ws'
 
 import 'graphiql/graphiql.css'
 
@@ -9,10 +9,12 @@ ReactDOM.createRoot(document.getElementById('root')).render(
   <GraphiQL fetcher={fetcher} shouldPersistHeaders />
 )
 
-let url = '/graphql'
+let url = new URL(location.href)
+url.protocol = 'ws:'
+url.pathname = '/graphql'
 
 const sse = createClient({
-  url,
+  url: url.toString(),
   singleConnection: false,
   onMessage: ({event, data}) => console.log(event, data),
   retryAttempts: 0,

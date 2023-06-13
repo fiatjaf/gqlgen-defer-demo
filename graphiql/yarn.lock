@@ -993,6 +993,11 @@ graphql-sse@^2.1.1:
   resolved "https://registry.yarnpkg.com/graphql-sse/-/graphql-sse-2.1.1.tgz#14cd1bcd50e68753ee42f0ccd1623f970d2edb2c"
   integrity sha512-lOBG4ScQe9Acv0PodlavTmIuB8kwD4LRvUuXrFm9Ahgi460R2QP+6GgBUOlrAglscIF1P+U+tHJNjO27c3gOOw==
 
+graphql-ws@^5.13.1:
+  version "5.13.1"
+  resolved "https://registry.yarnpkg.com/graphql-ws/-/graphql-ws-5.13.1.tgz#96ac9963edb1e94c8e7f21af48ce5fcaab91779a"
+  integrity sha512-eiX7ES/ZQr0q7hSM5UBOEIFfaAUmAY9/CSDyAnsETuybByU7l/v46drRg9DQoTvVABEHp3QnrvwgTRMhqy7zxQ==
+
 graphql@^16.6.0:
   version "16.6.0"
   resolved "https://registry.yarnpkg.com/graphql/-/graphql-16.6.0.tgz#c2dcffa4649db149f6282af726c8c83f1c7c5fdb"
